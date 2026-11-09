@@ -6,6 +6,7 @@ import { mountOnce } from './mount-once.ts'
 import { UsageService, type UsageServiceOptions } from './host/usage-service.ts'
 import { DEFAULT_CNY_PER_USD, resolveSpendDisplay, type SpendDisplay } from './core/spend.ts'
 import { makeUsageDayRoute, makeUsageOverviewRoute, makeUsageRefreshRoute } from './host/routes.ts'
+import { makeUsageAccessGate } from './host/access.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Events {
@@ -43,6 +44,8 @@ type ConfigField<T> = ConfigRef<T> | T | undefined
 /** The config the Host hands this activation — the runtime face of {@link Config}. */
 export interface UsageConfigFields {
   enabled?: ConfigField<boolean>
+  /** Opt in to remote admission for authenticated DSH owner Peers. */
+  allowAuthenticatedRemote?: ConfigField<boolean>
   /** Provider probe cycle in seconds; 30-3600. */
   pollIntervalSec?: ConfigField<number>
   /** Ledger retention in local days. */
@@ -69,6 +72,7 @@ export interface UsageConfigFields {
  */
 export const Config = z.object({
   enabled: z.boolean().default(true).volatile(),
+  allowAuthenticatedRemote: z.boolean().default(false).volatile(),
   pollIntervalSec: z.number().min(30).max(3600).default(60).volatile(),
   retainDays: z.number().min(7).max(730).default(180).volatile(),
   // Display only: the ledger keeps every cost estimate in CNY, and switching
@@ -145,8 +149,12 @@ export const apply = mountOnce('@linxin666/dsh-usage', (ctx: Context, config?: U
 
   /** Register the service's routes; the returned disposer unregisters them. */
   const mountRoutes = (next: UsageService): (() => void) => {
-    const disposers = [makeUsageOverviewRoute(ctx, next), makeUsageDayRoute(ctx, next), makeUsageRefreshRoute(ctx, next)]
-      .map((route) => ctx.webServer.register(route))
+    const accessGate = makeUsageAccessGate(ctx, () => readConfigField(config?.allowAuthenticatedRemote) === true)
+    const disposers = [
+      makeUsageOverviewRoute(ctx, next, accessGate),
+      makeUsageDayRoute(ctx, next, accessGate),
+      makeUsageRefreshRoute(ctx, next, accessGate),
+    ].map((route) => ctx.webServer.register(route))
     return () => {
       for (const dispose of disposers) {
         try {

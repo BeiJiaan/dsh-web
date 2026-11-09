@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
-import { isUsageAllowed } from './access.ts'
+import { isUsageAllowed, type UsageAccessGate } from './access.ts'
 import { writeJson } from './http.ts'
 import { isLedgerDateKey } from '../core/ledger.ts'
 import type { UsageDayResponse } from '../core/types.ts'
@@ -14,18 +14,24 @@ export const USAGE_API_PREFIX = '/api/dsh-usage'
  * Personal account data behind the family trust fence — loopback always
  * passes, and a live paired-device cookie passes too when remote-web-ui is
  * loaded (issue #1592: the sidebar usage panel reads this from a paired LAN
- * browser); every unpaired LAN request keeps its 403.
+ * browser). Without an explicit gate, every unpaired LAN request keeps its 403.
  * @param ctx - host context; may expose remoteWebUiPairing.
  * @param service - the usage service.
+ * @param accessGate - optional live admission gate; defaults to the original trust fence.
  * @returns the route.
  */
-export function makeUsageOverviewRoute(ctx: Context, service: UsageService): WebRoute {
+export function makeUsageOverviewRoute(
+  ctx: Context,
+  service: UsageService,
+  accessGate: UsageAccessGate = (req) => isUsageAllowed(ctx, req) ? undefined : 403,
+): WebRoute {
   return {
     kind: 'exact',
     path: USAGE_API_PREFIX + '/overview',
     handler: async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-      if (!isUsageAllowed(ctx, req)) {
-        writeJson(res, 403, { ok: false, error: 'forbidden: loopback-only' })
+      const rejection = accessGate(req)
+      if (rejection !== undefined) {
+        writeJson(res, rejection, { ok: false, error: rejection === 401 ? 'unauthorized' : 'forbidden: loopback-only' })
         return
       }
       writeJson(res, 200, service.overview(), { 'cache-control': 'no-store' })
@@ -41,15 +47,21 @@ export function makeUsageOverviewRoute(ctx: Context, service: UsageService): Web
  * rather than folded into a bogus day.
  * @param ctx - host context; may expose remoteWebUiPairing.
  * @param service - the usage service.
+ * @param accessGate - optional live admission gate; defaults to the original trust fence.
  * @returns the route.
  */
-export function makeUsageDayRoute(ctx: Context, service: UsageService): WebRoute {
+export function makeUsageDayRoute(
+  ctx: Context,
+  service: UsageService,
+  accessGate: UsageAccessGate = (req) => isUsageAllowed(ctx, req) ? undefined : 403,
+): WebRoute {
   return {
     kind: 'exact',
     path: USAGE_API_PREFIX + '/day',
     handler: (req: IncomingMessage, res: ServerResponse): void => {
-      if (!isUsageAllowed(ctx, req)) {
-        writeJson(res, 403, { ok: false, error: 'forbidden: loopback-only' })
+      const rejection = accessGate(req)
+      if (rejection !== undefined) {
+        writeJson(res, rejection, { ok: false, error: rejection === 401 ? 'unauthorized' : 'forbidden: loopback-only' })
         return
       }
       const date = new URL(req.url ?? '/', 'http://127.0.0.1').searchParams.get('date') ?? ''
@@ -67,15 +79,21 @@ export function makeUsageDayRoute(ctx: Context, service: UsageService): WebRoute
  * overview. Same trust fence as the overview route.
  * @param ctx - host context; may expose remoteWebUiPairing.
  * @param service - the usage service.
+ * @param accessGate - optional live admission gate; defaults to the original trust fence.
  * @returns the route.
  */
-export function makeUsageRefreshRoute(ctx: Context, service: UsageService): WebRoute {
+export function makeUsageRefreshRoute(
+  ctx: Context,
+  service: UsageService,
+  accessGate: UsageAccessGate = (req) => isUsageAllowed(ctx, req) ? undefined : 403,
+): WebRoute {
   return {
     kind: 'exact',
     path: USAGE_API_PREFIX + '/refresh',
     handler: async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-      if (!isUsageAllowed(ctx, req)) {
-        writeJson(res, 403, { ok: false, error: 'forbidden: loopback-only' })
+      const rejection = accessGate(req)
+      if (rejection !== undefined) {
+        writeJson(res, rejection, { ok: false, error: rejection === 401 ? 'unauthorized' : 'forbidden: loopback-only' })
         return
       }
       if (req.method !== 'POST') {
