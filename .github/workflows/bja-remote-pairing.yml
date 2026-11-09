@@ -1,0 +1,46 @@
+name: BJA remote pairing bridge
+on:
+  workflow_dispatch:
+  push:
+    branches: [bja-owner-access]
+    paths:
+      - 'packages/dsh-remote-bridge/**'
+      - 'shared/**'
+      - 'maintenance/remote-pairing/**'
+      - '.github/workflows/bja-remote-pairing.yml'
+permissions:
+  contents: read
+jobs:
+  verify-and-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          sparse-checkout: |
+            packages/dsh-remote-bridge
+            shared
+            maintenance/remote-pairing
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26.10.0'
+      - name: Install pinned build and browser test tools
+        run: npm ci --prefix maintenance/remote-pairing/tools --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org
+      - name: Install reviewed official Host SDK without executing it
+        run: |
+          SDK_VERSION=$(node -p "require('./maintenance/remote-pairing/release.json').dshVersion")
+          npm install --prefix "$RUNNER_TEMP/dsh-sdk" --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org "@deepseek-ai/dsh@$SDK_VERSION"
+      - name: Test and rebuild Host plus browser from fork sources
+        run: node maintenance/remote-pairing/build.mjs --dsh-root "$RUNNER_TEMP/dsh-sdk/node_modules/@deepseek-ai/dsh"
+      - name: Verify packed Host and browser hashes
+        run: |
+          for directory in maintenance/remote-pairing/dist/*; do
+            node maintenance/remote-pairing/verify.mjs "$directory"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bja-remote-pairing-${{ github.sha }}
+          path: maintenance/remote-pairing/dist/
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,12 @@
+{
+  "version": "0.4.16-bja.pairing.1",
+  "upstreamTag": "v0.4.16",
+  "upstreamCommit": "b764700c0d039e10ff3ee60b91ce990222e7a258",
+  "dshVersion": "0.2.2-rc.1",
+  "name": "@linxin666/dsh-remote-bridge",
+  "directory": "dsh-remote-bridge",
+  "rowId": "web-ui-remote-bridge",
+  "templateVersion": "0.4.16",
+  "templateUrl": "https://registry.npmjs.org/@linxin666/dsh-remote-bridge/-/dsh-remote-bridge-0.4.16.tgz",
+  "templateIntegrity": "sha512-dRCdfxe1cGEKYVUILgm1QIrk5S+02e3/MfjASaYQNQ3Qr3NE75Jw8onJ1zXt0lEz2inA0aop0qmEclRXyNOAfA=="
+}
