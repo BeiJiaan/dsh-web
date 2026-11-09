@@ -30,7 +30,7 @@ import { writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives'
 import { PairEntry } from './PairEntry.tsx'
 import { readPairToken } from './pair-token.ts'
 import { registerPresentToolview } from './toolview-slot.ts'
-import { en, zh, type RemoteBridgeKey } from './locales.ts'
+import { en, zh, ru, type RemoteBridgeKey } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -55,7 +55,7 @@ export const inject = ['slots', 'locale']
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => {
     try {
-      return ctx.locale.register(NS, { zh, en })
+      return ctx.locale.register(NS, { zh, en, ru })
     } catch {
       return () => {}
     }

@@ -43,6 +43,8 @@ describe('配置面沿用老插件的字段名与缺省值', () => {
       cfTunnelId: undefined,
       relayControlUrl: RELAY_CONTROL_URL,
       relayPublicSuffix: RELAY_BASE_SUFFIX,
+      remotePairingEnabled: false,
+      trustedPairingOrigins: [],
     })
   })
 
@@ -75,6 +77,8 @@ describe('配置面沿用老插件的字段名与缺省值', () => {
       cfTunnelId: 'tunnel',
       relayControlUrl: RELAY_CONTROL_URL,
       relayPublicSuffix: RELAY_BASE_SUFFIX,
+      remotePairingEnabled: false,
+      trustedPairingOrigins: [],
     })
   })
 

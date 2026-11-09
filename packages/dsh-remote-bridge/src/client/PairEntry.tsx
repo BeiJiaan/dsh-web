@@ -16,6 +16,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { PairPanel, type PairCopyState, type PairPanelState } from './PairPanel.tsx'
 import type { PairTokenOutcome } from './pair-token.ts'
+import { readRemoteInfo, mintRemoteToken, type RemoteInfo, type RemotePairError } from './remote-pair.ts'
 import { PART_ENTRY, PLUGIN_ATTR } from './semantic.ts'
 import { QrIcon } from './icons.tsx'
 import css from './panel.module.css'
@@ -77,13 +78,26 @@ export function PairEntry({ wide, read, copy, t }: PairEntryProps) {
   const [copyState, setCopyState] = useState<PairCopyState>('idle')
   const [now, setNow] = useState<number>(() => Date.now())
   const panelId = useId()
+  const [mode, setMode] = useState<'local' | 'remote'>('local')
+  const [info, setInfo] = useState<RemoteInfo | null>(null)
+  const [origin, setOrigin] = useState('')
+  const [remoteError, setRemoteError] = useState<RemotePairError | null>(null)
+  const abort = useRef<AbortController | null>(null)
   // Generation counter: closing (or minting again) invalidates a read that is
   // still in flight, so an answer that lands after the panel closed cannot
   // resurrect a code nobody asked for.
   const generation = useRef(0)
 
+  const invalidate = useCallback(() => {
+    generation.current += 1
+    abort.current?.abort()
+    setCopyState('idle')
+  }, [])
+  useEffect(() => () => { generation.current += 1; abort.current?.abort() }, [])
+
   const mint = useCallback((): void => {
-    const request = ++generation.current
+    invalidate()
+    const request = generation.current
     setState({ kind: 'reading' })
     void read().then((outcome) => {
       if (request !== generation.current) return
@@ -91,10 +105,63 @@ export function PairEntry({ wide, read, copy, t }: PairEntryProps) {
       setNow(issuedAt)
       setState(panelStateOf(outcome, issuedAt))
     })
-  }, [read])
+  }, [read, invalidate])
+
+  const loadRemote = useCallback(() => {
+    invalidate()
+    const request = generation.current
+    const controller = new AbortController()
+    abort.current = controller
+    setInfo(null)
+    setOrigin('')
+    setRemoteError(null)
+    setState({ kind: 'idle' })
+    void readRemoteInfo(controller.signal).then((result) => {
+      if (request !== generation.current) return
+      setInfo(result)
+      if (result.kind === 'ok') {
+        setOrigin(result.trustedOrigins.includes(window.location.origin) ? window.location.origin : result.trustedOrigins[0] ?? '')
+      }
+    })
+  }, [invalidate])
+
+  const selectMode = (next: 'local' | 'remote') => {
+    if (presence !== 'open' || mode === next) return
+    setMode(next)
+    if (next === 'local') mint()
+    else loadRemote()
+  }
+  const editOrigin = (value: string) => {
+    if (presence !== 'open') return
+    invalidate()
+    setOrigin(value)
+    setRemoteError(null)
+    setState({ kind: 'idle' })
+  }
+  const mintRemote = () => {
+    if (presence !== 'open' || info?.kind !== 'ok' || !info.trustedOrigins.includes(origin)) return
+    invalidate()
+    const request = generation.current
+    const controller = new AbortController()
+    abort.current = controller
+    setRemoteError(null)
+    setState({ kind: 'reading' })
+    void mintRemoteToken(origin, controller.signal).then((result) => {
+      if (request !== generation.current) return
+      if (result.kind === 'ok') {
+        const issuedAt = Date.now()
+        setNow(issuedAt)
+        setState(panelStateOf(result, issuedAt))
+      } else {
+        setState({ kind: 'idle' })
+        setRemoteError(result.kind)
+      }
+    })
+  }
 
   const openPanel = useCallback((): void => {
     setPresence('open')
+    setMode('local')
     setCopyState('idle')
     mint()
   }, [mint])
@@ -103,9 +170,12 @@ export function PairEntry({ wide, read, copy, t }: PairEntryProps) {
   // official Modal; this only decides what closing means for the presence, and
   // it invalidates a read that is still in flight.
   const requestClose = useCallback((): void => {
-    generation.current += 1
+    invalidate()
+    setState({ kind: 'idle' })
+    setInfo(null)
+    setOrigin('')
     setPresence((current) => (current === 'closed' ? 'closed' : 'closing'))
-  }, [])
+  }, [invalidate])
 
   const finishClose = useCallback((): void => {
     setPresence((current) => (current === 'closing' ? 'closed' : current))
@@ -136,11 +206,14 @@ export function PairEntry({ wide, read, copy, t }: PairEntryProps) {
   }, [presence, state])
 
   const handleCopy = useCallback((payload: string): void => {
+    if (state.kind !== 'ready' || Date.now() >= state.expiresAt) return
+    const request = generation.current
     void copy(payload).then((ok) => {
+      if (request !== generation.current) return
       setCopyState(ok ? 'copied' : 'failed')
-      window.setTimeout(() => { setCopyState('idle') }, COPY_FEEDBACK_MS)
+      window.setTimeout(() => { if (request === generation.current) setCopyState('idle') }, COPY_FEEDBACK_MS)
     })
-  }, [copy])
+  }, [copy, state])
 
   return (
     <>
@@ -170,7 +243,10 @@ export function PairEntry({ wide, read, copy, t }: PairEntryProps) {
           closing={closing}
           onClose={requestClose}
           onExited={finishClose}
-          onRefresh={mint}
+          mode={mode}
+          onModeChange={selectMode}
+          remote={{ info, origin, error: remoteError, onOriginChange: editOrigin }}
+          onRefresh={mode === 'local' ? mint : info?.kind === 'ok' ? mintRemote : loadRemote}
           onCopy={handleCopy}
         />
       )}

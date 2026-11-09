@@ -17,6 +17,7 @@ import {
   IconRefreshOutlineRegular, IconWarningOutlineRegular, Modal,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import type { RemoteInfo, RemotePairError } from './remote-pair.ts'
 import { isLanOrigin, type PairOriginSource } from '../core/pair-address.ts'
 import {
   EXPIRED_ATTR, PART_COPY, PART_NOTICE, PART_PANEL, PART_QR, PART_REFRESH, PLUGIN_ATTR, QR_VALUE_ATTR,
@@ -38,6 +39,7 @@ export const COMMUNITY_INVITE_URL = 'https://discord.gg/nBy28kjun'
 export type PairPanelState =
   /** A read is in flight. */
   | { kind: 'reading' }
+  | { kind: 'idle' }
   /**
    * A live one-shot secret. `pairingUrl`, when the host could name its own
    * public origin, is what the QR encodes: a `{token, url}` document the iOS
@@ -54,7 +56,7 @@ export type PairPanelState =
     issuedAt: number
     expiresAt: number
     origin: string | null
-    originSource: PairOriginSource | null
+    originSource: PairOriginSource | 'configured' | null
     pairingUrl: string | null
   }
   /** 403 from the loopback gate: this page is not open on the machine itself. */
@@ -86,6 +88,9 @@ export interface PairPanelProps {
   onExited(): void
   onRefresh(): void
   onCopy(payload: string): void
+  mode?: 'local' | 'remote'
+  onModeChange?(mode: 'local' | 'remote'): void
+  remote?: { info: RemoteInfo | null; origin: string; error: RemotePairError | null; onOriginChange(value: string): void }
 }
 
 /**
@@ -101,8 +106,8 @@ const PairQrCode = memo(function PairQrCode({ value, label }: { value: string; l
 })
 
 /** The one string the panel hands out: what the symbol encodes, what copy copies. */
-function payloadOf(state: PairPanelState): string {
-  return state.kind === 'ready' ? (state.pairingUrl ?? state.token) : ''
+function payloadOf(state: PairPanelState, remote: boolean): string {
+  return state.kind === 'ready' ? (remote && state.pairingUrl ? JSON.stringify({ token: state.token, url: state.pairingUrl }) : state.pairingUrl ?? state.token) : ''
 }
 
 /**
@@ -112,6 +117,7 @@ function payloadOf(state: PairPanelState): string {
  */
 export function PairPanel({
   t, state, now, host, copy, showing, closing, id, onClose, onExited, onRefresh, onCopy,
+  mode = 'local', onModeChange, remote,
 }: PairPanelProps) {
   const panel = useRef<HTMLDivElement | null>(null)
   const ready = state.kind === 'ready'
@@ -120,7 +126,10 @@ export function PairPanel({
   const seconds = Math.ceil(remainingMs / 1000)
   const windowMs = ready ? Math.max(1, state.expiresAt - state.issuedAt) : 1
   const percent = Math.min(100, Math.max(0, Math.round((remainingMs / windowMs) * 100)))
-  const payload = payloadOf(state)
+  const isRemote = mode === 'remote'
+  const approved = remote?.info?.kind === 'ok' && remote.info.trustedOrigins.includes(remote.origin)
+  const error = remote?.error ?? (remote?.info && remote.info.kind !== 'ok' ? remote.info.kind : null)
+  const payload = payloadOf(state, isRemote)
   // Only a live code can be handed out. An expired one is still on screen, so
   // its button stays put and reports that it is switched off.
   const canCopy = !expired && payload !== ''
@@ -131,7 +140,7 @@ export function PairPanel({
   // the literal itself is a private one; anything else counts as public, because
   // the one thing this line must never do is print a hostname the host did not
   // vouch for.
-  const onLan = located && isLanOrigin(state.origin, state.originSource)
+  const onLan = located && isLanOrigin(state.origin, state.originSource === 'configured' ? null : state.originSource)
 
   // The library owns the enter animation and the bundler scopes its keyframe
   // name, so the leave leg cannot name it in CSS. Read the mounted dialog's own
@@ -169,7 +178,7 @@ export function PairPanel({
         <header className={css.header}>
           <div className={css.heading}>
             <h2 className={css.title}>{t('title')}</h2>
-            <p className={css.subtitle}>{t('subtitle')}</p>
+            <p className={css.subtitle}>{t(isRemote ? 'remote.subtitle' : 'subtitle')}</p>
           </div>
           <Button
             className={css.close}
@@ -181,7 +190,46 @@ export function PairPanel({
           />
         </header>
 
-        <div className={css.body}>
+        {onModeChange && (
+          <div className={css.tabs} role="tablist" aria-label={t('mode.label')}>
+            {(['local', 'remote'] as const).map((tab) => (
+              <button key={tab} type="button" role="tab" disabled={closing} id={`${id}-${tab}-tab`}
+                aria-selected={mode === tab} aria-controls={`${id}-content`} tabIndex={mode === tab ? 0 : -1}
+                onClick={() => { onModeChange(tab) }}
+                onKeyDown={(event) => {
+                  if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+                    event.preventDefault()
+                    const next = event.key === 'Home' ? 'local' : event.key === 'End' ? 'remote' : tab === 'local' ? 'remote' : 'local'
+                    onModeChange(next)
+                    document.getElementById(`${id}-${next}-tab`)?.focus()
+                  }
+                }}>{t(tab === 'local' ? 'mode.local' : 'mode.remote')}</button>
+            ))}
+          </div>
+        )}
+        <div className={css.body} id={`${id}-content`} role={onModeChange ? 'tabpanel' : undefined}
+          aria-labelledby={onModeChange ? `${id}-${mode}-tab` : undefined}>
+          {isRemote && remote && (
+            <>
+              {remote.info === null && <p className={css.hint}>{t('remote.loading')}</p>}
+              {remote.info?.kind === 'ok' && (
+                <>
+                  <label className={css.originField} htmlFor={`${id}-origin`}>
+                    {t('remote.addressLabel')}
+                    <input id={`${id}-origin`} type="url" value={remote.origin} disabled={closing} autoComplete="off" spellCheck={false}
+                      aria-invalid={!approved} aria-describedby={`${id}-origin-status`}
+                      onChange={(event) => { remote.onOriginChange(event.target.value) }} />
+                  </label>
+                  <p className={css.address} id={`${id}-origin-status`} data-tone={approved ? 'plain' : 'warning'}>
+                    {approved ? t('remote.trusted', { origin: remote.origin }) : t('remote.unknownOrigin')}
+                  </p>
+                  <p className={css.hint}>{t('remote.ownerVerified')}</p>
+                  {approved && state.kind === 'idle' && !error && <p className={css.hint}>{t('remote.ready')}</p>}
+                </>
+              )}
+              {error && <p className={css.notice} role="alert">{t(`remote.${error}`)}</p>}
+            </>
+          )}
           {(state.kind === 'forbidden' || state.kind === 'failed' || state.kind === 'unreachable') && (
             <div className={css.notice} data-dsh-part={PART_NOTICE} data-tone="alert" role="alert">
               <span className={css.noticeIcon} aria-hidden="true"><IconWarningOutlineRegular /></span>
@@ -229,11 +277,11 @@ export function PairPanel({
                 </div>
               </div>
 
-              <p className={css.address} data-tone={located ? 'plain' : 'warning'}>
+              {!isRemote && <p className={css.address} data-tone={located ? 'plain' : 'warning'}>
                 {ready && located && !onLan && t('origin.public')}
                 {ready && onLan && t('origin.lan', { origin: state.origin ?? '' })}
                 {ready && !located && t('origin.missing', { host })}
-              </p>
+              </p>}
               <p className={css.hint}>{t('pair.usedHint')}</p>
             </>
           )}
@@ -283,11 +331,11 @@ export function PairPanel({
               variant="primary"
               size="sm"
               data-dsh-part={PART_REFRESH}
-              disabled={state.kind === 'reading'}
+              disabled={closing || state.kind === 'reading' || (isRemote && (remote?.info === null || (remote?.info?.kind === 'ok' && !approved)))}
               icon={<IconRefreshOutlineRegular />}
               onClick={onRefresh}
             >
-              {primaryLabel}
+              {isRemote && state.kind === 'idle' ? t(remote?.info?.kind === 'ok' ? 'remote.generate' : 'action.retry') : primaryLabel}
             </Button>
           </footer>
         )}

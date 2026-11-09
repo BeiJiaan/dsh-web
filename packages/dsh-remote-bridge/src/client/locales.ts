@@ -22,6 +22,23 @@
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
+  "mode.label": "配对方式",
+  "mode.local": "本机配对",
+  "mode.remote": "远程配对",
+  "remote.subtitle": "在已验证的所有者会话中，为服务器信任的 HTTPS 地址生成一次性配对码。",
+  "remote.loading": "正在验证所有者身份和远程配对配置…",
+  "remote.addressLabel": "远程 HTTPS 地址",
+  "remote.trusted": "服务器信任的地址：{origin}",
+  "remote.ownerVerified": "所有者身份已验证；地址须在服务器允许列表中。",
+  "remote.ready": "准备就绪。点击生成配对码，不会自动取码。",
+  "remote.generate": "生成配对码",
+  "remote.disabled": "服务器未启用远程配对，或尚未配置可信 HTTPS 地址。请在服务器配置后重试。",
+  "remote.unauthorized": "需要所有者登录。请先登录此 Web UI，再重试。",
+  "remote.forbidden": "服务器拒绝远程配对。请检查所有者权限和服务器的远程配对配置。",
+  "remote.unknownOrigin": "此地址不在服务器允许列表中。请选择已配置的 HTTPS 地址；此处不能添加信任。",
+  "remote.failed": "远程配对请求失败或响应无效，请重试并检查服务器配置。",
+  "remote.unreachable": "无法连接服务器，请检查网络后重试。",
+
   'entry.label': '配对 iPhone',
   'title': 'iOS App 配对',
   'subtitle': '用 iOS App（内测）扫描二维码，把 iPhone 连到这台电脑上。配对码只在本机显示。',
@@ -57,6 +74,23 @@ export const zh = {
 
 /** English dictionary, key-for-key with the zh source. */
 export const en: Record<RemoteBridgeKey, string> = {
+  "mode.label": "Pairing mode",
+  "mode.local": "Local pairing",
+  "mode.remote": "Remote pairing",
+  "remote.subtitle": "Generate a one-time code for a server-approved HTTPS address in an authenticated owner session.",
+  "remote.loading": "Checking owner access and remote pairing configuration…",
+  "remote.addressLabel": "Remote HTTPS address",
+  "remote.trusted": "Server-approved address: {origin}",
+  "remote.ownerVerified": "Owner access verified; the address must be on the server allowlist.",
+  "remote.ready": "Ready. Click Generate code; no code is issued automatically.",
+  "remote.generate": "Generate code",
+  "remote.disabled": "Remote pairing is disabled or no trusted HTTPS address is configured. Configure it on the server and retry.",
+  "remote.unauthorized": "Owner sign-in required. Sign in to this Web UI and retry.",
+  "remote.forbidden": "The server refused remote pairing. Check owner permissions and the server remote pairing configuration.",
+  "remote.unknownOrigin": "This address is not on the server allowlist. Choose a configured HTTPS address; trust cannot be added here.",
+  "remote.failed": "Remote pairing failed or returned an invalid response. Retry and check server configuration.",
+  "remote.unreachable": "Cannot reach the server. Check your connection and retry.",
+
   'entry.label': 'Pair an iPhone',
   'title': 'iOS app pairing',
   'subtitle': 'Scan the QR code with the iOS app (beta) to connect an iPhone to this computer. The code is shown only on this machine.',
@@ -92,3 +126,23 @@ export const en: Record<RemoteBridgeKey, string> = {
 
 /** Every key the `remote-bridge` namespace carries. */
 export type RemoteBridgeKey = keyof typeof zh
+
+/** Russian uses the established English fallback for untranslated existing copy. */
+export const ru: Record<RemoteBridgeKey, string> = { ...en,
+  "mode.label": "Способ сопряжения",
+  "mode.local": "Локальное сопряжение",
+  "mode.remote": "Удалённое сопряжение",
+  "remote.subtitle": "Создайте одноразовый код для разрешённого сервером HTTPS-адреса в сеансе владельца.",
+  "remote.loading": "Проверка доступа владельца и настроек удалённого сопряжения…",
+  "remote.addressLabel": "Удалённый HTTPS-адрес",
+  "remote.trusted": "Разрешённый сервером адрес: {origin}",
+  "remote.ownerVerified": "Доступ владельца подтверждён; адрес должен быть разрешён сервером.",
+  "remote.ready": "Всё готово. Нажмите «Создать код»; автоматически код не создаётся.",
+  "remote.generate": "Создать код",
+  "remote.disabled": "Удалённое сопряжение отключено или доверенный HTTPS-адрес не настроен. Проверьте настройки сервера.",
+  "remote.unauthorized": "Требуется вход владельца. Войдите в этот веб-интерфейс и повторите попытку.",
+  "remote.forbidden": "Сервер отказал в удалённом сопряжении. Проверьте права владельца и настройки сервера.",
+  "remote.unknownOrigin": "Адрес не разрешён сервером. Выберите настроенный HTTPS-адрес; добавить доверие здесь нельзя.",
+  "remote.failed": "Ошибка удалённого сопряжения или неверный ответ. Повторите попытку и проверьте сервер.",
+  "remote.unreachable": "Сервер недоступен. Проверьте подключение и повторите попытку.",
+}

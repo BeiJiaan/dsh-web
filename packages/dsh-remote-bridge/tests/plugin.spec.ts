@@ -153,13 +153,13 @@ describe('the mounted plugin', () => {
     delete process.env.DSH_HOME
   })
 
-  it('operator mounts the plugin and finds exactly the two frozen routes', () => {
+  it('operator mounts the bridge and finds the original and opt-in remote pairing routes', () => {
     // Given the plugin mounted on a fake host
     const host = mountPlugin()
     // When the registrations are read
     const paths = [...host.upgrades.map(route => route.path), ...host.routes.map(route => route.path)].sort()
     // Then the WebSocket endpoint and the loopback token endpoint are the whole surface
-    expect(paths).toEqual([PAIR_TOKEN_PATH, WS_PATH].sort())
+    expect(paths).toEqual([PAIR_TOKEN_PATH, WS_PATH, '/remote-bridge/pair/remote-info', '/remote-bridge/pair/remote-token'].sort())
     expect(host.routes[0]?.kind).toBe('exact')
     expect(host.listeners.has('approval/request')).toBe(true)
     expect(host.listeners.has('user-questions/request')).toBe(true)
@@ -228,7 +228,7 @@ describe('the mounted plugin', () => {
   it('operator mounts a second source of the same package and only the first registers routes', () => {
     // Given a first source whose two routes are registered on the host
     const first = mountPlugin()
-    expect([...first.upgrades.map(route => route.path), ...first.routes.map(route => route.path)].sort()).toEqual([PAIR_TOKEN_PATH, WS_PATH].sort())
+    expect([...first.upgrades.map(route => route.path), ...first.routes.map(route => route.path)].sort()).toEqual([PAIR_TOKEN_PATH, WS_PATH, '/remote-bridge/pair/remote-info', '/remote-bridge/pair/remote-token'].sort())
     // When the same package is mounted again from a second source (the aggregate row beside a standalone install)
     const second = mountPlugin()
     // Then that mount is a no-op: the host half stays registered exactly once
@@ -246,7 +246,7 @@ describe('the mounted plugin', () => {
     for (const dispose of first.disposers) dispose()
     await nextTurn()
     // Then the queued mount was replayed and both routes are live on the second host
-    expect([...second.upgrades.map(route => route.path), ...second.routes.map(route => route.path)].sort()).toEqual([PAIR_TOKEN_PATH, WS_PATH].sort())
+    expect([...second.upgrades.map(route => route.path), ...second.routes.map(route => route.path)].sort()).toEqual([PAIR_TOKEN_PATH, WS_PATH, '/remote-bridge/pair/remote-info', '/remote-bridge/pair/remote-token'].sort())
   })
 
   it('operator unmounts the plugin and both routes are gone', () => {

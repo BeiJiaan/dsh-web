@@ -39,7 +39,7 @@ export type PairTokenOutcome =
     token: string
     expiresAt: number
     origin: string | null
-    originSource: PairOriginSource | null
+    originSource: PairOriginSource | 'configured' | null
     pairingUrl: string | null
   }
   /** 403: the page is not open on the machine itself, so the loopback gate refused it. */
@@ -114,6 +114,6 @@ export async function readPairToken(options: ReadPairTokenOptions = {}): Promise
   const candidate = stringOrNull((body as { pairingUrl?: unknown }).pairingUrl)
   const pairingUrl = candidate !== null && /^wss?:\/\/\S+$/.test(candidate) ? candidate : null
   const source = (body as { originSource?: unknown }).originSource
-  const originSource = source === 'realtime' || source === 'env' || source === 'lan' ? source : null
+  const originSource = source === 'realtime' || source === 'env' || source === 'lan' || source === 'configured' ? source : null
   return { kind: 'ok', token, expiresAt, origin, originSource, pairingUrl }
 }

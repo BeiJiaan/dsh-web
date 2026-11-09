@@ -442,3 +442,14 @@
   clip: rect(0, 0, 0, 0);
   clip-path: inset(0);
 }
+
+/* Mode controls use the modal's existing semantic theme and focus tokens. */
+.tabs { display: flex; gap: var(--pair-space-1); border-bottom: 1px solid var(--dsw-alias-border-l2); }
+.tabs button { flex: 1; padding: var(--pair-space-2); border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; cursor: pointer; }
+.tabs button[aria-selected='true'] { color: var(--dsw-alias-label-primary); border-bottom-color: var(--dsw-alias-brand-primary); }
+.tabs button:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.tabs button:focus-visible, .originField input:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color); outline-offset: var(--pair-focus-offset); }
+.originField { display: flex; flex-direction: column; gap: var(--pair-space-1); }
+.originField input { box-sizing: border-box; width: 100%; min-width: 0; padding: var(--pair-space-2); border: 1px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); font: inherit; }
+.originField input[aria-invalid='true'] { border-color: var(--dsw-alias-state-warn-primary); }
+.address { overflow-wrap: anywhere; }

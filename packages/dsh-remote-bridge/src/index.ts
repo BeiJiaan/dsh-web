@@ -72,6 +72,7 @@ import { StandingWatchers } from './host/watchers.ts'
 import { LoopbackSquads } from './host/squads.ts'
 import { mountOnce } from './mount-once.ts'
 import { makePairTokenRoute } from './host/routes.ts'
+import { makeRemotePairRoutes, resolveRemotePairConfig, type RemotePairConnection } from './host/remote-pair.ts'
 import { createUiPresentTool } from './host/ui-tools.ts'
 import { hostWebOrigin, LoopbackUsage } from './host/usage-stats.ts'
 import { ensureFirewallRule, firewallSummary, removeFirewallRule, type FirewallSummary } from './host/firewall.ts'
@@ -407,6 +408,10 @@ function jobFaces(ctx: Context) {
  * `host/relay-secondary.ts` 的 {@link relaySecondaryOf}）。
  */
 export interface Config {
+  /** Owner-authenticated remote pairing is strictly opt-in (default false). */
+  remotePairingEnabled?: boolean
+  /** Canonical HTTPS bare origins approved for pairing (default empty). */
+  trustedPairingOrigins?: string[]
   /** 是否申领 relay 租约（默认 true）。关掉就只有本机的回环入口可用。 */
   relay?: boolean
   /** 是否起快速隧道（默认 false）：隧道目标永远是入站闸门，不是 webServer。 */
@@ -443,6 +448,8 @@ export interface Config {
 
 /** 配置面补齐缺省值后的样子：每个字段都是调用方可以直接用的值。 */
 export interface ResolvedBridgeConfig {
+  remotePairingEnabled: boolean
+  trustedPairingOrigins: string[]
   relay: boolean
   autoTunnel: boolean
   tunnelToken: string | undefined
@@ -518,6 +525,7 @@ function optionalTextField(fields: Record<string, unknown>, key: string): string
 export function resolveBridgeConfig(raw: unknown, env: NodeJS.ProcessEnv = process.env): ResolvedBridgeConfig {
   const fields = configFieldsOf(raw)
   return {
+    ...resolveRemotePairConfig(raw),
     relay: booleanField(fields, 'relay', true),
     autoTunnel: booleanField(fields, 'autoTunnel', false),
     tunnelToken: optionalTextField(fields, 'tunnelToken'),
@@ -1681,6 +1689,12 @@ function applyImpl(ctx: Context, config?: unknown): void {
       lan: lanOrigin,
       onPairTokenIssued: () => { wakeRelay() },
     }))
+    const disposeRemotePairRoutes = makeRemotePairRoutes({
+      pairing,
+      config: () => config,
+      // Connection is optional and may be replaced after mount. Never cache admission.
+      getConnection: () => ctx.get('connection', false) as RemotePairConnection | undefined,
+    }).map(route => ctx.webServer.register(route))
     log(`protocol v1 listening on ${WS_PATH}`)
     // Where the channel stands is only knowable once the roster is read: a relay
     // token may already be on disk, and a line written before that read would
@@ -1695,6 +1709,7 @@ function applyImpl(ctx: Context, config?: unknown): void {
     return () => {
       disposeUpgrade()
       disposeRoute()
+      for (const dispose of disposeRemotePairRoutes) dispose()
       watchers.dispose()
       turnEndQuiet.dispose()
       hub.dispose()
