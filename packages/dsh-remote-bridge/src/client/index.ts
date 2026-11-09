@@ -36,11 +36,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
     /** Protocol v1 pairing panel copy. */
     'remote-bridge': RemoteBridgeKey
+    /** Fork pairing copy must not collide with the aggregate's original dictionary. */
+    'remote-bridge-pairing': RemoteBridgeKey
   }
 }
 
 /** Dictionary namespace owned by this plugin. */
-const NS = 'remote-bridge'
+const NS = 'remote-bridge-pairing'
 
 /** Unique occupant id inside the shared footer.action list slot. */
 const ENTRY_ID = 'remote-bridge'
