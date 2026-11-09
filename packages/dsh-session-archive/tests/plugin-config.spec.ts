@@ -19,6 +19,7 @@ import { DEFAULT_AUTO_CONFIG, readArchiveConfig, resolveAutoConfig, type Session
 /** The auto-maintenance defaults the shipped settings page documents. */
 const DOCUMENTED_DEFAULTS = {
   enabled: true,
+  allowAuthenticatedRemote: false,
   autoArchiveEnabled: false,
   autoArchiveDays: 7,
   autoDeleteEnabled: false,

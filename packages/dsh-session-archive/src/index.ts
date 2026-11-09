@@ -7,6 +7,7 @@ import z from '@deepseek-ai/schemastery'
 import { mountOnce } from './mount-once.ts'
 import { ArchiveService } from './host/janitor.ts'
 import { makeArchiveRoutes } from './host/routes.ts'
+import { makeArchiveAccessGate } from './host/access.ts'
 import { readArchiveConfig, resolveAutoConfig, type SessionArchiveConfigFields } from './core/config.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -24,6 +25,8 @@ declare module '@deepseek-ai/cordis' {
 }
 
 export const name = 'dsh-session-archive'
+// Connection is deliberately optional: ctx.get() below also supports older Hosts
+// without it. Cordis inject objects map service names to config, not optional lists.
 export const inject = ['webServer', 'workspaceRegistry']
 
 /**
@@ -36,6 +39,8 @@ export const inject = ['webServer', 'workspaceRegistry']
  */
 export const Config = z.object({
   enabled: z.boolean().default(true).volatile(),
+  // Local access is unchanged; remote access still requires an admitted owner.
+  allowAuthenticatedRemote: z.boolean().default(false).volatile(),
   autoArchiveEnabled: z.boolean().default(false).volatile(),
   autoArchiveDays: z.number().min(1).max(3650).default(7).volatile(),
   autoDeleteEnabled: z.boolean().default(false).volatile(),
@@ -47,6 +52,9 @@ export const Config = z.object({
 export const apply = mountOnce('@linxin666/dsh-session-archive', (ctx: Context, config?: SessionArchiveConfigFields): void => {
   let service: ArchiveService | undefined
   let disposeRoutes: (() => void) | undefined
+  // Resolve the active optional service on demand; never cache admission or the
+  // volatile opt-in, so settings revocation affects the very next request.
+  const access = makeArchiveAccessGate(config, () => ctx.get('connection'))
 
   /**
    * Apply the activation's current settings: unmount the whole surface when
@@ -67,7 +75,7 @@ export const apply = mountOnce('@linxin666/dsh-session-archive', (ctx: Context, 
       const next = new ArchiveService(ctx)
       service = next
       void next.start()
-      const disposers = makeArchiveRoutes(next).map((route) => ctx.webServer.register(route))
+      const disposers = makeArchiveRoutes(next, access).map((route) => ctx.webServer.register(route))
       disposeRoutes = () => {
         for (const dispose of disposers) {
           try {

@@ -1,8 +1,8 @@
 /**
- * HTTP routes for dsh-session-archive. Every route is loopback-fenced (the
- * plugin manages destructive local session data; tunnels and LAN clients get
- * 403), mutating routes additionally require POST, and the delete route
- * surfaces the host plan on confirmation mismatch.
+ * HTTP routes for dsh-session-archive. Every factory defaults to the original
+ * loopback fence; the Host may supply an explicit authenticated-owner gate.
+ * Admission always precedes body reads. Mutating routes additionally require
+ * POST, and the delete route surfaces the host plan on confirmation mismatch.
  * @module @linxin666/dsh-session-archive/host/routes
  */
 
@@ -11,7 +11,7 @@ import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import type { BatchRequestBody } from '../core/types.ts'
 import { BusyError, PlanMismatchError, type ArchiveService } from './janitor.ts'
 import { readBoundedJson, writeJson } from './http.ts'
-import { isLoopbackRequest } from './loopback.ts'
+import { loopbackAccessGate, type ArchiveAccessGate } from './access.ts'
 import { canonicalSessionId } from './session-files.ts'
 
 export const ARCHIVE_API_PREFIX = '/api/dsh-session-archive'
@@ -19,12 +19,21 @@ export const ARCHIVE_API_PREFIX = '/api/dsh-session-archive'
 /** Batch bodies carry id arrays; 4 MiB covers ~50k ids with margin. */
 const BODY_MAX_BYTES = 4_000_000
 
-function fenced(req: IncomingMessage, res: ServerResponse): boolean {
-  if (!isLoopbackRequest(req)) {
-    writeJson(res, 403, { ok: false, error: 'forbidden: loopback-only' })
-    return false
+/** A custom gate may retain 401/403; exceptions and invalid results fail closed. */
+async function fenced(req: IncomingMessage, res: ServerResponse, gate: ArchiveAccessGate): Promise<boolean> {
+  let rejection: 401 | 403 = 403
+  try {
+    const result = await gate(req)
+    if (result === undefined) return true
+    if (result === 401) rejection = 401
+  } catch {
+    // A broken or unavailable admission provider must never expose a route.
   }
-  return true
+  writeJson(res, rejection, {
+    ok: false,
+    error: rejection === 401 ? 'unauthorized' : gate === loopbackAccessGate ? 'forbidden: loopback-only' : 'forbidden',
+  })
+  return false
 }
 
 async function readBody(req: IncomingMessage): Promise<unknown> {
@@ -63,12 +72,13 @@ function errorDetail(error: unknown): string {
   return error instanceof Error ? error.message.slice(0, 300) : String(error)
 }
 
-export function makeInventoryRoute(service: ArchiveService): WebRoute {
+/** Defaults to loopback-only; supply a gate explicitly to change admission. */
+export function makeInventoryRoute(service: ArchiveService, gate: ArchiveAccessGate = loopbackAccessGate): WebRoute {
   return {
     kind: 'exact',
     path: `${ARCHIVE_API_PREFIX}/inventory`,
     handler: async (req, res) => {
-      if (!fenced(req, res)) return
+      if (!await fenced(req, res, gate)) return
       try {
         const inventory = await service.inventory()
         writeJson(res, 200, inventory, { 'cache-control': 'no-store' })
@@ -79,12 +89,13 @@ export function makeInventoryRoute(service: ArchiveService): WebRoute {
   }
 }
 
-export function makePreviewRoute(service: ArchiveService): WebRoute {
+/** Defaults to loopback-only; supply a gate explicitly to change admission. */
+export function makePreviewRoute(service: ArchiveService, gate: ArchiveAccessGate = loopbackAccessGate): WebRoute {
   return {
     kind: 'exact',
     path: `${ARCHIVE_API_PREFIX}/preview`,
     handler: async (req, res) => {
-      if (!fenced(req, res)) return
+      if (!await fenced(req, res, gate)) return
       const url = new URL(req.url ?? '/', 'http://localhost')
       const id = url.searchParams.get('id') ?? ''
       if (!id.startsWith('session-')) {
@@ -101,12 +112,12 @@ export function makePreviewRoute(service: ArchiveService): WebRoute {
   }
 }
 
-function batchRoute(service: ArchiveService, path: string, run: (body: BatchRequestBody) => Promise<{ results: unknown; freedBytes: number }>): WebRoute {
+function batchRoute(service: ArchiveService, path: string, run: (body: BatchRequestBody) => Promise<{ results: unknown; freedBytes: number }>, gate: ArchiveAccessGate): WebRoute {
   return {
     kind: 'exact',
     path,
     handler: async (req, res) => {
-      if (!fenced(req, res)) return
+      if (!await fenced(req, res, gate)) return
       if (req.method !== 'POST') {
         writeJson(res, 405, { ok: false, error: 'method not allowed' })
         return
@@ -144,27 +155,31 @@ function batchRoute(service: ArchiveService, path: string, run: (body: BatchRequ
   }
 }
 
-export function makeArchiveRoute(service: ArchiveService): WebRoute {
-  return batchRoute(service, `${ARCHIVE_API_PREFIX}/archive`, (body) => service.archive(body.ids, 'manual', body.currentSessionId))
+/** Defaults to loopback-only; supply a gate explicitly to change admission. */
+export function makeArchiveRoute(service: ArchiveService, gate: ArchiveAccessGate = loopbackAccessGate): WebRoute {
+  return batchRoute(service, `${ARCHIVE_API_PREFIX}/archive`, (body) => service.archive(body.ids, 'manual', body.currentSessionId), gate)
 }
 
-export function makeUnarchiveRoute(service: ArchiveService): WebRoute {
-  return batchRoute(service, `${ARCHIVE_API_PREFIX}/unarchive`, (body) => service.unarchive(body.ids))
+/** Defaults to loopback-only; supply a gate explicitly to change admission. */
+export function makeUnarchiveRoute(service: ArchiveService, gate: ArchiveAccessGate = loopbackAccessGate): WebRoute {
+  return batchRoute(service, `${ARCHIVE_API_PREFIX}/unarchive`, (body) => service.unarchive(body.ids), gate)
 }
 
-export function makeDeleteRoute(service: ArchiveService): WebRoute {
+/** Defaults to loopback-only; supply a gate explicitly to change admission. */
+export function makeDeleteRoute(service: ArchiveService, gate: ArchiveAccessGate = loopbackAccessGate): WebRoute {
   return batchRoute(service, `${ARCHIVE_API_PREFIX}/delete`, (body) => service.deleteSessions(body.ids, {
     currentSessionId: body.currentSessionId,
     ...(body.expectedTotal !== undefined ? { expectedTotal: body.expectedTotal } : {}),
-  }))
+  }), gate)
 }
 
-export function makeAutoPreviewRoute(service: ArchiveService): WebRoute {
+/** Defaults to loopback-only; supply a gate explicitly to change admission. */
+export function makeAutoPreviewRoute(service: ArchiveService, gate: ArchiveAccessGate = loopbackAccessGate): WebRoute {
   return {
     kind: 'exact',
     path: `${ARCHIVE_API_PREFIX}/auto/preview`,
     handler: async (req, res) => {
-      if (!fenced(req, res)) return
+      if (!await fenced(req, res, gate)) return
       try {
         writeJson(res, 200, await service.autoPreview(), { 'cache-control': 'no-store' })
       } catch (error) {
@@ -174,12 +189,13 @@ export function makeAutoPreviewRoute(service: ArchiveService): WebRoute {
   }
 }
 
-export function makeAutoRunRoute(service: ArchiveService): WebRoute {
+/** Defaults to loopback-only; supply a gate explicitly to change admission. */
+export function makeAutoRunRoute(service: ArchiveService, gate: ArchiveAccessGate = loopbackAccessGate): WebRoute {
   return {
     kind: 'exact',
     path: `${ARCHIVE_API_PREFIX}/auto/run`,
     handler: async (req, res) => {
-      if (!fenced(req, res)) return
+      if (!await fenced(req, res, gate)) return
       if (req.method !== 'POST') {
         writeJson(res, 405, { ok: false, error: 'method not allowed' })
         return
@@ -209,14 +225,15 @@ export function makeAutoRunRoute(service: ArchiveService): WebRoute {
   }
 }
 
-export function makeArchiveRoutes(service: ArchiveService): WebRoute[] {
+/** Apply one policy to all seven endpoints; standalone callers stay local by default. */
+export function makeArchiveRoutes(service: ArchiveService, gate: ArchiveAccessGate = loopbackAccessGate): WebRoute[] {
   return [
-    makeInventoryRoute(service),
-    makePreviewRoute(service),
-    makeArchiveRoute(service),
-    makeUnarchiveRoute(service),
-    makeDeleteRoute(service),
-    makeAutoPreviewRoute(service),
-    makeAutoRunRoute(service),
+    makeInventoryRoute(service, gate),
+    makePreviewRoute(service, gate),
+    makeArchiveRoute(service, gate),
+    makeUnarchiveRoute(service, gate),
+    makeDeleteRoute(service, gate),
+    makeAutoPreviewRoute(service, gate),
+    makeAutoRunRoute(service, gate),
   ]
 }

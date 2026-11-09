@@ -6,6 +6,8 @@
 
 export interface SessionArchiveConfig {
   enabled?: boolean
+  /** Default off. Admit non-loopback requests only as authenticated Host owners. */
+  allowAuthenticatedRemote?: boolean
   /** Auto-archive sessions inactive for more than this many days. Default off. */
   autoArchiveEnabled?: boolean
   /** Inactivity threshold in days for auto-archive (1-3650). */
@@ -45,6 +47,8 @@ export type ConfigField<T> = T | ConfigFieldRef<T> | undefined
  */
 export interface SessionArchiveConfigFields {
   enabled?: ConfigField<boolean>
+  /** Read on every request so a volatile revocation takes effect without remounting. */
+  allowAuthenticatedRemote?: ConfigField<boolean>
   autoArchiveEnabled?: ConfigField<boolean>
   autoArchiveDays?: ConfigField<number>
   autoDeleteEnabled?: ConfigField<boolean>
@@ -73,6 +77,7 @@ export function readConfigField<T>(field: ConfigField<T>): T | undefined {
 export function readArchiveConfig(config?: SessionArchiveConfigFields): SessionArchiveConfig {
   return {
     enabled: readConfigField(config?.enabled),
+    allowAuthenticatedRemote: readConfigField(config?.allowAuthenticatedRemote),
     autoArchiveEnabled: readConfigField(config?.autoArchiveEnabled),
     autoArchiveDays: readConfigField(config?.autoArchiveDays),
     autoDeleteEnabled: readConfigField(config?.autoDeleteEnabled),
