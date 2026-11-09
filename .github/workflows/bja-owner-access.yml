@@ -35,6 +35,11 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/dsh-sdk" --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org "@deepseek-ai/dsh@$SDK_VERSION"
       - name: Verify tests and build two source-traceable packages
         run: node maintenance/owner-access/build.mjs --dsh-root "$RUNNER_TEMP/dsh-sdk/node_modules/@deepseek-ai/dsh"
+      - name: Independently verify packaged artifacts
+        run: |
+          for directory in maintenance/owner-access/dist/*; do
+            node maintenance/owner-access/verify.mjs "$directory"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: bja-owner-access-${{ github.sha }}

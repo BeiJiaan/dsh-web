@@ -36,7 +36,7 @@ node maintenance/owner-access/build.mjs --dsh-root /usr/lib/node_modules/@deepse
 
 第一条命令只安装隔离维护工具的锁定依赖，禁用依赖安装脚本；不要用根目录安装或修改上游依赖声明来代替它。构建暂存区、缓存和 dist 都被 Git 忽略。`--allow-dirty` 仅用于本地演练，产物会带 `dirty` 标记及独立目录名，不应用于部署。
 
-也可以在 GitHub **Actions → BJA owner-access packages → Run workflow** 构建；成功后下载包含两个 tgz 和 manifest 的 artifact。工作流使用固定 Node/SDK 和锁文件，不会部署、不使用生产密钥、不发布 npm。维护分支相关改动推送时也会运行。
+也可以在 GitHub **Actions → BJA owner-access packages → Run workflow** 构建；成功后下载包含两个 tgz 和 manifest 的 artifact。工作流使用固定 Node/SDK 和锁文件，不会部署、不使用生产密钥、不发布 npm。维护分支相关改动推送时也会运行。为避免个人 fork 意外运行上游的定时任务、商店部署、发布或协作者分配，GitHub 中继承的其他工作流已停用；其源码保留，未来有需要可在 fork 中审查后重新启用。
 
 构建流程必须满足以下契约：
 

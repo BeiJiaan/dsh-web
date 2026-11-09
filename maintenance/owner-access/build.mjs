@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
+import { createRequire } from 'node:module'
 import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -73,8 +74,11 @@ const dshArg = args.indexOf('--dsh-root')
 const dshRoot = realpathSync(dshArg >= 0 ? resolve(args[dshArg + 1]) : process.env.DSH_ROOT || join(execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim(), '@deepseek-ai/dsh'))
 assert.equal(json(join(dshRoot, 'package.json')).name, '@deepseek-ai/dsh')
 assert.equal(json(join(dshRoot, 'package.json')).version, release.dshVersion, 'DSH SDK differs from reviewed release.json; review and test before changing the pin')
-const sdkScope = join(dshRoot, 'node_modules/@deepseek-ai')
-assert(existsSync(join(sdkScope, 'dsh-client-connection/package.json')), 'Incomplete official SDK installation')
+// npm global installs nest dependencies under DSH; local CI installs may hoist
+// them beside DSH. Resolve the actual cohort rather than assuming either layout.
+const sdkRequire = createRequire(join(dshRoot, 'package.json'))
+const sdkScope = dirname(dirname(sdkRequire.resolve('@deepseek-ai/dsh-client-connection/package.json')))
+assert.equal(json(join(sdkScope, 'dsh-client-connection/package.json')).version, release.dshVersion, 'Incomplete or mixed official SDK installation')
 const tools = join(here, 'tools/node_modules')
 assert(existsSync(join(tools, 'vitest/vitest.mjs')), 'Run npm ci --prefix maintenance/owner-access/tools --ignore-scripts first')
 for (const [name, version] of Object.entries(json(join(here, 'tools/package.json')).dependencies)) {
