@@ -1,0 +1,29 @@
+{
+  "upstreamRepository": "https://github.com/zhu1090093659/dsh-web",
+  "upstreamTag": "v0.4.16",
+  "upstreamCommit": "b764700c0d039e10ff3ee60b91ce990222e7a258",
+  "dshVersion": "0.2.2-rc.1",
+  "version": "0.4.16-bja.owner.1",
+  "packages": [
+    {
+      "directory": "dsh-session-archive",
+      "name": "@linxin666/dsh-session-archive",
+      "rowId": "web-ui-session-archive",
+      "templateVersion": "0.4.16",
+      "templateUrl": "https://registry.npmjs.org/@linxin666/dsh-session-archive/-/dsh-session-archive-0.4.16.tgz",
+      "templateIntegrity": "sha512-Et9VvY7vY7ru4zeX0k04Ic3YPiUG3LhQXmbbxTmvnYw9TtDCFGpDkpZbcF2s/99UrG76NXuwSTSNUn+QSSBzKQ==",
+      "hostPatchFiles": ["src/core/config.ts", "src/host/access.ts", "src/host/routes.ts", "src/index.ts"],
+      "tests": ["authenticated-access", "auto-rules", "cascade", "dir-index-cache", "inventory", "janitor", "ledger", "plugin-config", "projcache-index-memo", "routes", "selection"]
+    },
+    {
+      "directory": "dsh-usage",
+      "name": "@linxin666/dsh-usage",
+      "rowId": "web-ui-usage",
+      "templateVersion": "0.4.16",
+      "templateUrl": "https://registry.npmjs.org/@linxin666/dsh-usage/-/dsh-usage-0.4.16.tgz",
+      "templateIntegrity": "sha512-bQq4UlC1jAMK6Uh82Af2sH5esv+J5Z74LrJtDaunPzsYvQeXDmO8YuXZe5DxPTLj2Bi86KicbJuLebUhtET6Mw==",
+      "hostPatchFiles": ["src/host/access.ts", "src/host/routes.ts", "src/index.ts"],
+      "tests": ["authenticated-access", "apply", "holidays", "ledger", "pricing", "routes", "spend", "usage-service"]
+    }
+  ]
+}

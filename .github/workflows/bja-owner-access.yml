@@ -1,0 +1,42 @@
+name: BJA owner-access packages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [bja-owner-access]
+    paths:
+      - 'packages/dsh-session-archive/**'
+      - 'packages/dsh-usage/**'
+      - 'maintenance/owner-access/**'
+      - '.github/workflows/bja-owner-access.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          sparse-checkout: |
+            packages/dsh-session-archive
+            packages/dsh-usage
+            maintenance/owner-access
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26.10.0'
+      - name: Install pinned tooling without lifecycle scripts
+        run: npm ci --prefix maintenance/owner-access/tools --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org
+      - name: Install reviewed official DSH SDK without running it
+        run: |
+          SDK_VERSION=$(node -p "require('./maintenance/owner-access/release.json').dshVersion")
+          npm install --prefix "$RUNNER_TEMP/dsh-sdk" --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org "@deepseek-ai/dsh@$SDK_VERSION"
+      - name: Verify tests and build two source-traceable packages
+        run: node maintenance/owner-access/build.mjs --dsh-root "$RUNNER_TEMP/dsh-sdk/node_modules/@deepseek-ai/dsh"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bja-owner-access-${{ github.sha }}
+          path: maintenance/owner-access/dist/
+          if-no-files-found: error
